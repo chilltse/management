@@ -1,7 +1,9 @@
-import type { Task, User } from './types'
+import type { Task, User, DailyPlan, DailySummary } from './types'
 
 const USERS_KEY = 'pm_users'
 const TASKS_KEY = 'pm_tasks'
+const DAILY_PLAN_KEY = 'pm_daily_plans'
+const DAILY_SUMMARY_KEY = 'pm_daily_summaries'
 const CURRENT_USER_KEY = 'pm_current_user'
 
 function safeJson<T>(key: string, fallback: T): T {
@@ -71,5 +73,57 @@ export const taskStorage = {
   remove(id: string) {
     const tasks = this.getAll().filter(t => t.id !== id)
     this.saveAll(tasks)
+  },
+}
+
+export const dailyPlanStorage = {
+  getAll(): DailyPlan[] {
+    return safeJson<DailyPlan[]>(DAILY_PLAN_KEY, [])
+  },
+  saveAll(plans: DailyPlan[]) {
+    setItem(DAILY_PLAN_KEY, plans)
+  },
+  getByUserAndDate(userId: string, date: string): DailyPlan[] {
+    return this.getAll().filter(p => p.userId === userId && p.date === date)
+  },
+  upsert(entry: DailyPlan) {
+    const plans = this.getAll()
+    const idx = plans.findIndex(
+      p => p.userId === entry.userId && p.taskId === entry.taskId && p.date === entry.date
+    )
+    if (idx === -1) {
+      plans.push(entry)
+    } else {
+      plans[idx] = { ...plans[idx], ...entry }
+    }
+    this.saveAll(plans)
+    return entry
+  },
+}
+
+export const dailySummaryStorage = {
+  getAll(): DailySummary[] {
+    return safeJson<DailySummary[]>(DAILY_SUMMARY_KEY, [])
+  },
+  saveAll(summaries: DailySummary[]) {
+    setItem(DAILY_SUMMARY_KEY, summaries)
+  },
+  getByUserAndDate(userId: string, date: string): DailySummary | null {
+    return this.getAll().find(s => s.userId === userId && s.date === date) ?? null
+  },
+  setFocusMinutes(userId: string, date: string, minutes: number) {
+    const summaries = this.getAll()
+    const idx = summaries.findIndex(s => s.userId === userId && s.date === date)
+    if (idx === -1) {
+      summaries.push({
+        id: crypto.randomUUID(),
+        userId,
+        date,
+        focusMinutes: minutes,
+      })
+    } else {
+      summaries[idx] = { ...summaries[idx], focusMinutes: minutes }
+    }
+    this.saveAll(summaries)
   },
 }

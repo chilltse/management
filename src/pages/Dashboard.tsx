@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { taskStorage } from '../storage'
 import type { Task } from '../types'
@@ -21,7 +22,14 @@ export default function Dashboard() {
   }, [user])
 
   const handleSave = useCallback(
-    (data: { name: string; details: string; percent: number; scheduledAt: string; deadline: string }) => {
+    (data: {
+      name: string
+      details: string
+      percent: number
+      scheduledAt: string
+      deadline: string
+      parentId: string | null
+    }) => {
       if (!user) return
       const now = new Date().toISOString()
       if (editingId) {
@@ -59,6 +67,26 @@ export default function Dashboard() {
     return { total, done, overdue, avg }
   }, [tasks])
 
+  const sortedTasks = useMemo(
+    () =>
+      [...tasks].sort((a, b) => {
+        const da = new Date(a.deadline).getTime()
+        const db = new Date(b.deadline).getTime()
+        return da - db
+      }),
+    [tasks]
+  )
+
+  const parentNameMap = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const t of tasks) {
+      if (!t.parentId) {
+        map.set(t.id, t.name)
+      }
+    }
+    return map
+  }, [tasks])
+
   const editingTask: Task | null = editingId
     ? tasks.find(t => t.id === editingId) ?? null
     : null
@@ -68,6 +96,9 @@ export default function Dashboard() {
       <header className="dashboard-header">
         <h1>项目进度</h1>
         <div className="header-actions">
+          <Link to="/today" className="btn btn-ghost">
+            今日计划
+          </Link>
           <span className="user-email">{user?.email}</span>
           <button type="button" className="btn btn-ghost" onClick={logout}>
             退出
@@ -107,25 +138,28 @@ export default function Dashboard() {
             <thead>
               <tr>
                 <th>任务名称</th>
+                <th>层级</th>
                 <th>明细</th>
                 <th>进度</th>
                 <th>预定时间</th>
+                <th>剩余天数</th>
                 <th>截止时间</th>
                 <th className="th-actions">操作</th>
               </tr>
             </thead>
             <tbody>
-              {tasks.length === 0 ? (
+              {sortedTasks.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="empty-cell">
+                  <td colSpan={8} className="empty-cell">
                     暂无任务，点击「新建任务」添加
                   </td>
                 </tr>
               ) : (
-                tasks.map(task => (
+                sortedTasks.map(task => (
                   <TaskRow
                     key={task.id}
                     task={task}
+                    levelLabel={task.parentId ? `子任务（${parentNameMap.get(task.parentId) ?? '未知'}）` : '大任务'}
                     onEdit={() => setEditingId(task.id)}
                     onDelete={() => handleDelete(task.id)}
                   />
@@ -139,6 +173,7 @@ export default function Dashboard() {
       {(creating || editingTask) && (
         <TaskModal
           task={editingTask}
+          parents={tasks.filter(t => !t.parentId)}
           onSave={handleSave}
           onClose={() => {
             setCreating(false)

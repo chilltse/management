@@ -2,6 +2,7 @@ import type { Task } from '../types'
 
 interface TaskRowProps {
   task: Task
+  levelLabel?: string
   onEdit: () => void
   onDelete: () => void
 }
@@ -17,15 +18,25 @@ function formatDate(iso: string) {
   })
 }
 
-export default function TaskRow({ task, onEdit, onDelete }: TaskRowProps) {
+function daysUntil(iso: string) {
+  const now = new Date()
+  const deadline = new Date(iso)
+  const diffMs = deadline.getTime() - now.getTime()
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+  return diffDays
+}
+
+export default function TaskRow({ task, levelLabel, onEdit, onDelete }: TaskRowProps) {
   const isOverdue = new Date(task.deadline) < new Date() && task.percent < 100
   const progressClass = task.percent >= 100 ? 'done' : isOverdue ? 'overdue' : 'partial'
+  const dLeft = daysUntil(task.deadline)
 
   return (
     <tr>
       <td>
         <strong>{task.name}</strong>
       </td>
+      <td className="level-cell">{levelLabel ?? (task.parentId ? '子任务' : '大任务')}</td>
       <td className="details-cell" title={task.details}>
         {task.details || '—'}
       </td>
@@ -39,6 +50,11 @@ export default function TaskRow({ task, onEdit, onDelete }: TaskRowProps) {
         <span className="progress-text">{task.percent}%</span>
       </td>
       <td className="date-cell">{formatDate(task.scheduledAt)}</td>
+      <td className={`days-left-cell ${dLeft <= 10 ? 'urgent' : ''}`}>
+        {dLeft > 0 && `${dLeft} 天`}
+        {dLeft === 0 && '今天'}
+        {dLeft < 0 && `${Math.abs(dLeft)} 天前`}
+      </td>
       <td className={`date-cell ${isOverdue ? 'overdue' : ''}`}>
         {formatDate(task.deadline)}
       </td>

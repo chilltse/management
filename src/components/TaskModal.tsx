@@ -4,12 +4,14 @@ import './TaskModal.css'
 
 interface TaskModalProps {
   task: Task | null
+  parents: Task[]
   onSave: (data: {
     name: string
     details: string
     percent: number
     scheduledAt: string
     deadline: string
+    parentId: string | null
   }) => void
   onClose: () => void
 }
@@ -28,12 +30,14 @@ function toISO(dt: string): string {
   return new Date(dt).toISOString()
 }
 
-export default function TaskModal({ task, onSave, onClose }: TaskModalProps) {
+export default function TaskModal({ task, parents, onSave, onClose }: TaskModalProps) {
   const [name, setName] = useState('')
   const [details, setDetails] = useState('')
   const [percent, setPercent] = useState(0)
   const [scheduledAt, setScheduledAt] = useState('')
   const [deadline, setDeadline] = useState('')
+  const [isSubtask, setIsSubtask] = useState(false)
+  const [parentId, setParentId] = useState('')
 
   const isEdit = !!task
 
@@ -44,6 +48,8 @@ export default function TaskModal({ task, onSave, onClose }: TaskModalProps) {
       setPercent(task.percent)
       setScheduledAt(toLocalDatetime(task.scheduledAt))
       setDeadline(toLocalDatetime(task.deadline))
+      setIsSubtask(!!task.parentId)
+      setParentId(task.parentId ?? '')
     } else {
       const now = new Date()
       const defaultStart = toLocalDatetime(now.toISOString())
@@ -53,6 +59,8 @@ export default function TaskModal({ task, onSave, onClose }: TaskModalProps) {
       setPercent(0)
       setScheduledAt(defaultStart)
       setDeadline(toLocalDatetime(defaultEnd.toISOString()))
+      setIsSubtask(false)
+      setParentId('')
     }
   }, [task])
 
@@ -60,12 +68,14 @@ export default function TaskModal({ task, onSave, onClose }: TaskModalProps) {
     e.preventDefault()
     const trimmedName = name.trim()
     if (!trimmedName) return
+    if (isSubtask && !parentId) return
     onSave({
       name: trimmedName,
       details: details.trim(),
       percent: Math.min(100, Math.max(0, percent)),
       scheduledAt: toISO(scheduledAt),
       deadline: toISO(deadline),
+      parentId: isSubtask ? parentId : null,
     })
   }
 
@@ -89,6 +99,41 @@ export default function TaskModal({ task, onSave, onClose }: TaskModalProps) {
               required
             />
           </label>
+          <div className="modal-type-row">
+            <label className="inline-label">
+              <input
+                type="radio"
+                checked={!isSubtask}
+                onChange={() => setIsSubtask(false)}
+              />
+              大任务
+            </label>
+            <label className="inline-label">
+              <input
+                type="radio"
+                checked={isSubtask}
+                onChange={() => {
+                  if (parents.length === 0) return
+                  setIsSubtask(true)
+                }}
+                disabled={parents.length === 0}
+              />
+              子任务
+            </label>
+          </div>
+          {isSubtask && (
+            <label>
+              <span>所属大任务</span>
+              <select value={parentId} onChange={e => setParentId(e.target.value)} required>
+                <option value="">选择所属大任务</option>
+                {parents.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <label>
             <span>任务明细</span>
             <textarea
