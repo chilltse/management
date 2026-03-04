@@ -1,0 +1,151 @@
+import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useAuth } from '../context/AuthContext'
+import { taskStorage } from '../storage'
+import type { Task } from '../types'
+import TaskRow from '../components/TaskRow'
+import TaskModal from '../components/TaskModal'
+import './Dashboard.css'
+
+export default function Dashboard() {
+  const { user, logout } = useAuth()
+  const [tasks, setTasks] = useState<Task[]>([])
+
+  useEffect(() => {
+    if (user) setTasks(taskStorage.getByUserId(user.id))
+  }, [user])
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [creating, setCreating] = useState(false)
+
+  const refreshTasks = useCallback(() => {
+    if (user) setTasks(taskStorage.getByUserId(user.id))
+  }, [user])
+
+  const handleSave = useCallback(
+    (data: { name: string; details: string; percent: number; scheduledAt: string; deadline: string }) => {
+      if (!user) return
+      const now = new Date().toISOString()
+      if (editingId) {
+        taskStorage.update(editingId, { ...data, updatedAt: now })
+        setEditingId(null)
+      } else {
+        taskStorage.add({
+          id: crypto.randomUUID(),
+          userId: user.id,
+          ...data,
+          createdAt: now,
+          updatedAt: now,
+        })
+        setCreating(false)
+      }
+      refreshTasks()
+    },
+    [user, editingId, refreshTasks]
+  )
+
+  const handleDelete = useCallback(
+    (id: string) => {
+      taskStorage.remove(id)
+      if (editingId === id) setEditingId(null)
+      refreshTasks()
+    },
+    [editingId, refreshTasks]
+  )
+
+  const stats = useMemo(() => {
+    const total = tasks.length
+    const done = tasks.filter(t => t.percent >= 100).length
+    const overdue = tasks.filter(t => new Date(t.deadline) < new Date() && t.percent < 100).length
+    const avg = total ? Math.round(tasks.reduce((s, t) => s + t.percent, 0) / total) : 0
+    return { total, done, overdue, avg }
+  }, [tasks])
+
+  const editingTask: Task | null = editingId
+    ? tasks.find(t => t.id === editingId) ?? null
+    : null
+
+  return (
+    <div className="dashboard">
+      <header className="dashboard-header">
+        <h1>项目进度</h1>
+        <div className="header-actions">
+          <span className="user-email">{user?.email}</span>
+          <button type="button" className="btn btn-ghost" onClick={logout}>
+            退出
+          </button>
+        </div>
+      </header>
+
+      <section className="stats">
+        <div className="stat-card">
+          <span className="stat-value">{stats.total}</span>
+          <span className="stat-label">总任务</span>
+        </div>
+        <div className="stat-card">
+          <span className="stat-value">{stats.done}</span>
+          <span className="stat-label">已完成</span>
+        </div>
+        <div className="stat-card warning">
+          <span className="stat-value">{stats.overdue}</span>
+          <span className="stat-label">已逾期</span>
+        </div>
+        <div className="stat-card">
+          <span className="stat-value">{stats.avg}%</span>
+          <span className="stat-label">平均进度</span>
+        </div>
+      </section>
+
+      <section className="task-section">
+        <div className="section-head">
+          <h2>任务列表</h2>
+          <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
+            新建任务
+          </button>
+        </div>
+
+        <div className="task-table-wrap">
+          <table className="task-table">
+            <thead>
+              <tr>
+                <th>任务名称</th>
+                <th>明细</th>
+                <th>进度</th>
+                <th>预定时间</th>
+                <th>截止时间</th>
+                <th className="th-actions">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tasks.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="empty-cell">
+                    暂无任务，点击「新建任务」添加
+                  </td>
+                </tr>
+              ) : (
+                tasks.map(task => (
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    onEdit={() => setEditingId(task.id)}
+                    onDelete={() => handleDelete(task.id)}
+                  />
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {(creating || editingTask) && (
+        <TaskModal
+          task={editingTask}
+          onSave={handleSave}
+          onClose={() => {
+            setCreating(false)
+            setEditingId(null)
+          }}
+        />
+      )}
+    </div>
+  )
+}
