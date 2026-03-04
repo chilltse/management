@@ -1,19 +1,19 @@
 .dashboard {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 24px 20px;
+  padding: 32px 20px 40px;
 }
 
 .dashboard-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 28px;
+  margin-bottom: 32px;
 }
 
 .dashboard-header h1 {
-  font-size: 1.6rem;
-  font-weight: 600;
+  font-size: 1.5rem;
+  font-weight: 550;
   letter-spacing: -0.02em;
 }
 
@@ -31,16 +31,17 @@
 .stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-  margin-bottom: 28px;
+  gap: 14px;
+  margin-bottom: 24px;
 }
 
 .stat-card {
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 20px;
-  text-align: center;
+  border-radius: 14px;
+  padding: 14px 14px 12px;
+  text-align: left;
+  border: 1px solid var(--border-soft);
+  box-shadow: var(--shadow-subtle);
 }
 
 .stat-card.warning .stat-value {
@@ -49,9 +50,9 @@
 
 .stat-value {
   display: block;
-  font-size: 1.8rem;
-  font-weight: 700;
-  color: var(--accent);
+  font-size: 1.7rem;
+  font-weight: 600;
+  color: #f9fafb;
 }
 
 .stat-label {
@@ -62,10 +63,12 @@
 }
 
 .task-section {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  background: var(--surface-elevated);
+  border-radius: 18px;
   overflow: hidden;
+  border: 1px solid var(--border-soft);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(20px);
 }
 
 .section-head {
@@ -87,7 +90,8 @@
 
 .task-table {
   width: 100%;
-  border-collapse: collapse;
+  border-spacing: 0;
+  border-collapse: separate;
 }
 
 .task-table th {
@@ -98,17 +102,18 @@
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  background: var(--surface-hover);
+  background: rgba(15, 23, 42, 0.9);
+  border-bottom: 1px solid var(--border);
 }
 
 .task-table td {
-  padding: 14px 16px;
+  padding: 10px 16px;
   border-top: 1px solid var(--border);
   vertical-align: middle;
 }
 
 .task-table tbody tr:hover {
-  background: var(--surface-hover);
+  background: rgba(15, 23, 42, 0.85);
 }
 
 .th-actions {
@@ -185,7 +190,7 @@
 
 .btn {
   padding: 8px 16px;
-  border-radius: 8px;
+  border-radius: 999px;
   font-weight: 500;
   transition: background 0.15s, color 0.15s;
 }
@@ -193,6 +198,7 @@
 .btn-primary {
   background: var(--accent);
   color: white;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.7);
 }
 
 .btn-primary:hover {
@@ -201,11 +207,13 @@
 
 .btn-ghost {
   color: var(--text-muted);
+  border-radius: 999px;
+  padding-inline: 14px;
 }
 
 .btn-ghost:hover {
   color: var(--text);
-  background: var(--surface-hover);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .btn-sm {

@@ -10,13 +10,15 @@
 }
 
 .modal {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  background: var(--surface-elevated);
+  border-radius: 22px;
   width: 100%;
   max-width: 440px;
   max-height: 90vh;
   overflow-y: auto;
+  border: 1px solid var(--border-soft);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(26px);
 }
 
 .modal-header {

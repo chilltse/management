@@ -35,7 +35,7 @@ function formatMinutes(value: number) {
   return `${h} 小时 ${m} 分钟`
 }
 
-const COLORS = ['#6366f1', '#22c55e', '#eab308', '#ef4444', '#14b8a6', '#ec4899']
+const COLORS = ['#4f46e5', '#0ea5e9', '#10b981', '#f59e0b', '#f97316', '#a855f7']
 
 export default function Stats() {
   const { user, logout } = useAuth()
@@ -151,30 +151,71 @@ export default function Stats() {
               padding: '20px',
             }}
           >
-            <svg width="160" height="160" viewBox="0 0 160 160">
-              <circle cx="80" cy="80" r="70" fill="#111118" />
+            <svg width="200" height="200" viewBox="0 0 200 200">
+              <circle cx="100" cy="100" r="74" fill="#020617" />
               {data.pieItems.length === 0 ? (
-                <text x="80" y="84" textAnchor="middle" fill="#666" fontSize="12">
+                <text x="100" y="104" textAnchor="middle" fill="#6b7280" fontSize="12">
                   暂无已完成任务
                 </text>
               ) : (
                 (() => {
                   const total = data.pieItems.reduce((s, i) => s + i.value, 0)
-                  let startAngle = 0
-                  const radius = 70
-                  const cx = 80
-                  const cy = 80
+                  let startAngle = -Math.PI / 2
+                  const radius = 60
+                  const cx = 100
+                  const cy = 100
+                  const labelRadius = 80
                   return data.pieItems.map((item, index) => {
                     const angle = (item.value / total) * Math.PI * 2
                     const endAngle = startAngle + angle
+                    const mid = (startAngle + endAngle) / 2
                     const x1 = cx + radius * Math.cos(startAngle)
                     const y1 = cy + radius * Math.sin(startAngle)
                     const x2 = cx + radius * Math.cos(endAngle)
                     const y2 = cy + radius * Math.sin(endAngle)
                     const largeArc = angle > Math.PI ? 1 : 0
                     const d = `M ${cx} ${cy} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} Z`
+
+                    const lx = cx + labelRadius * Math.cos(mid)
+                    const ly = cy + labelRadius * Math.sin(mid)
+                    const isLeft = mid > Math.PI / 2 || mid < -Math.PI / 2
+                    const lineEndX = lx + (isLeft ? -14 : 14)
+                    const textAnchor = isLeft ? 'end' : 'start'
+
+                    const path = <path key={`slice-${index}`} d={d} fill={item.color} />
+                    const connector = (
+                      <g key={`label-${index}`}>
+                        <line
+                          x1={cx + (radius + 4) * Math.cos(mid)}
+                          y1={cy + (radius + 4) * Math.sin(mid)}
+                          x2={lx}
+                          y2={ly}
+                          stroke={item.color}
+                          strokeWidth={0.8}
+                        />
+                        <line
+                          x1={lx}
+                          y1={ly}
+                          x2={lineEndX}
+                          y2={ly}
+                          stroke={item.color}
+                          strokeWidth={0.8}
+                        />
+                        <circle cx={lineEndX} cy={ly} r={1.6} fill={item.color} />
+                        <text
+                          x={lineEndX + (textAnchor === 'start' ? 4 : -4)}
+                          y={ly - 2}
+                          fontSize={11}
+                          fill="#e5e7eb"
+                          textAnchor={textAnchor as 'start' | 'end'}
+                        >
+                          {item.label}
+                        </text>
+                      </g>
+                    )
+
                     startAngle = endAngle
-                    return <path key={index} d={d} fill={item.color} />
+                    return [path, connector]
                   })
                 })()
               )}
@@ -183,26 +224,6 @@ export default function Stats() {
               <div className="stat-label" style={{ marginBottom: 8 }}>
                 仅统计当日「已完成」任务，按实际完成时长（分钟）作为占比。
               </div>
-              {data.pieItems.length > 0 && (
-                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                  {data.pieItems.map((item, index) => (
-                    <li
-                      key={index}
-                      style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}
-                    >
-                      <span
-                        style={{
-                          width: 10,
-                          height: 10,
-                          borderRadius: 999,
-                          backgroundColor: item.color,
-                        }}
-                      />
-                      <span style={{ fontSize: 13 }}>{item.label}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
             </div>
           </div>
         </section>
