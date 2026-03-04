@@ -12,12 +12,6 @@ function toDateKey(d: Date) {
   return `${y}-${m}-${day}`
 }
 
-function isToday(iso: string) {
-  const d = new Date(iso)
-  const todayKey = toDateKey(new Date())
-  return toDateKey(d) === todayKey
-}
-
 function clampPercent(value: number) {
   if (Number.isNaN(value)) return 0
   return Math.min(100, Math.max(0, value))
@@ -28,9 +22,9 @@ export default function Today() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [plans, setPlans] = useState<DailyPlan[]>([])
   const [focusMinutes, setFocusMinutes] = useState(0)
+  const [newPlanTitle, setNewPlanTitle] = useState('')
+  const [newSegmentPercent, setNewSegmentPercent] = useState(10)
   const [newTaskId, setNewTaskId] = useState<string>('')
-  const [newSegmentPercent, setNewSegmentPercent] = useState<number>(10)
-  const [newBaseTaskName, setNewBaseTaskName] = useState('')
 
   const todayKey = useMemo(() => toDateKey(new Date()), [])
 
@@ -43,145 +37,95 @@ export default function Today() {
     }
   }, [user, todayKey])
 
-  const todayTasks = useMemo(() => {
-    const ids = new Set<string>()
-    // 1) 预定时间是今天的任务
-    for (const t of tasks) {
-      if (isToday(t.scheduledAt)) ids.add(t.id)
+  const todayPlans = useMemo(
+    () => [...plans].sort((a, b) => (a.id < b.id ? -1 : 1)),
+    [plans]
+  )
+
+  const getTaskForPlan = useCallback(
+    (plan: DailyPlan): Task | null =>
+      plan.taskId ? tasks.find(t => t.id === plan.taskId) ?? null : null,
+    [tasks]
+  )
+
+  const handleAddPlan = useCallback(() => {
+    if (!user) return
+    const title = newPlanTitle.trim() || '未命名'
+    const seg = Math.max(0, Math.min(100, Math.floor(newSegmentPercent) || 0))
+    const entry: DailyPlan = {
+      id: crypto.randomUUID(),
+      userId: user.id,
+      taskId: newTaskId || null,
+      title,
+      date: todayKey,
+      expectedDurationMinutes: null,
+      actualDurationMinutes: null,
+      segmentPercent: seg,
+      done: false,
     }
-    // 2) 已经为今天创建过计划的任务
-    for (const p of plans) {
-      if (p.date === todayKey) ids.add(p.taskId)
-    }
-    return tasks
-      .filter(t => ids.has(t.id))
-      .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())
-  }, [plans, tasks, todayKey])
+    dailyPlanStorage.add(entry)
+    setPlans(prev => [...prev, entry])
+    setNewPlanTitle('')
+  }, [user, todayKey, newPlanTitle, newSegmentPercent, newTaskId])
 
   const handleToggleDone = useCallback(
-    (task: Task, checked: boolean) => {
+    (plan: DailyPlan, checked: boolean) => {
       if (!user) return
-      const existing = plans.find(p => p.taskId === task.id && p.date === todayKey)
-      const seg = existing?.segmentPercent ?? 0
-      const wasDone = existing?.done ?? false
-
-      // 计算对总进度的增量：勾选 -> +seg；取消勾选 -> -seg
-      let delta = 0
-      if (checked && !wasDone) delta = seg
-      if (!checked && wasDone) delta = -seg
-
-      const nextPercent = clampPercent(task.percent + delta)
-      const updated = taskStorage.update(task.id, { percent: nextPercent })
-      if (!updated) return
-      setTasks(prev => prev.map(t => (t.id === updated.id ? updated : t)))
-
-      const entry: DailyPlan = {
-        id: existing?.id ?? crypto.randomUUID(),
-        userId: user.id,
-        taskId: task.id,
-        title: existing?.title ?? null,
-        date: todayKey,
-        expectedDurationMinutes: existing?.expectedDurationMinutes,
-        actualDurationMinutes: existing?.actualDurationMinutes,
-        segmentPercent: seg,
-        done: checked,
-        percentAtEnd: nextPercent,
+      const seg = plan.segmentPercent ?? 0
+      const wasDone = plan.done ?? false
+      dailyPlanStorage.updateById(plan.id, { done: checked })
+      if (plan.taskId) {
+        const task = tasks.find(t => t.id === plan.taskId)
+        if (task) {
+          let delta = 0
+          if (checked && !wasDone) delta = seg
+          if (!checked && wasDone) delta = -seg
+          const next = clampPercent(task.percent + delta)
+          taskStorage.update(plan.taskId, { percent: next })
+          setTasks(prev => prev.map(t => (t.id === plan.taskId ? { ...t, percent: next } : t)))
+        }
       }
-      dailyPlanStorage.upsert(entry)
-      setPlans(prev => {
-        const idx = prev.findIndex(p => p.taskId === task.id && p.date === todayKey)
-        if (idx === -1) return [...prev, entry]
-        const copy = [...prev]
-        copy[idx] = entry
-        return copy
-      })
+      setPlans(prev =>
+        prev.map(p => (p.id === plan.id ? { ...p, done: checked } : p))
+      )
     },
-    [plans, todayKey, user]
+    [user, tasks]
   )
+
+  const handlePlanPatch = useCallback((planId: string, patch: Partial<DailyPlan>) => {
+    const updated = dailyPlanStorage.updateById(planId, patch)
+    if (!updated) return
+    setPlans(prev => prev.map(p => (p.id === planId ? updated : p)))
+  }, [])
 
   const handlePercentChange = useCallback(
-    (task: Task, value: number) => {
+    (plan: DailyPlan, value: number) => {
+      if (!plan.taskId) return
       const next = clampPercent(value)
-      const updated = taskStorage.update(task.id, { percent: next })
-      if (!updated || !user) return
-      setTasks(prev => prev.map(t => (t.id === updated.id ? updated : t)))
-
-      const entry: DailyPlan = {
-        id: crypto.randomUUID(),
-        userId: user.id,
-        taskId: task.id,
-        title: getPlanForTask(task.id)?.title ?? null,
-        date: todayKey,
-        percentAtEnd: next,
-      }
-      dailyPlanStorage.upsert(entry)
-      setPlans(prev => {
-        const idx = prev.findIndex(p => p.taskId === task.id && p.date === todayKey)
-        if (idx === -1) return [...prev, entry]
-        const copy = [...prev]
-        copy[idx] = { ...copy[idx], ...entry }
-        return copy
-      })
+      taskStorage.update(plan.taskId, { percent: next })
+      setTasks(prev =>
+        prev.map(t => (t.id === plan.taskId ? { ...t, percent: next } : t))
+      )
+      dailyPlanStorage.updateById(plan.id, { percentAtEnd: next })
+      setPlans(prev => prev.map(p => (p.id === plan.id ? { ...p, percentAtEnd: next } : p)))
     },
-    [todayKey, user]
+    []
   )
 
-  const handleExpectedDurationChange = useCallback(
-    (task: Task, value: number) => {
-      if (!user) return
-      const minutes = Math.max(0, Math.floor(value) || 0)
-      const existing = getPlanForTask(task.id)
-      const entry: DailyPlan = {
-        id: existing?.id ?? crypto.randomUUID(),
-        userId: user.id,
-        taskId: task.id,
-        title: existing?.title ?? null,
-        date: todayKey,
-        expectedDurationMinutes: minutes,
-        actualDurationMinutes: existing?.actualDurationMinutes,
-        segmentPercent: existing?.segmentPercent,
-        done: existing?.done,
-        percentAtEnd: existing?.percentAtEnd,
+  const handleRemovePlan = useCallback(
+    (plan: DailyPlan) => {
+      if (plan.done && plan.taskId) {
+        const task = tasks.find(t => t.id === plan.taskId)
+        if (task) {
+          const next = clampPercent(task.percent - (plan.segmentPercent ?? 0))
+          taskStorage.update(plan.taskId, { percent: next })
+          setTasks(prev => prev.map(t => (t.id === plan.taskId ? { ...t, percent: next } : t)))
+        }
       }
-      dailyPlanStorage.upsert(entry)
-      setPlans(prev => {
-        const idx = prev.findIndex(p => p.taskId === task.id && p.date === todayKey)
-        if (idx === -1) return [...prev, entry]
-        const copy = [...prev]
-        copy[idx] = { ...copy[idx], ...entry }
-        return copy
-      })
+      dailyPlanStorage.remove(plan.id)
+      setPlans(prev => prev.filter(p => p.id !== plan.id))
     },
-    [todayKey, user]
-  )
-
-  const handleActualDurationChange = useCallback(
-    (task: Task, value: number) => {
-      if (!user) return
-      const minutes = Math.max(0, Math.floor(value) || 0)
-      const existing = getPlanForTask(task.id)
-      const entry: DailyPlan = {
-        id: existing?.id ?? crypto.randomUUID(),
-        userId: user.id,
-        taskId: task.id,
-        title: existing?.title ?? null,
-        date: todayKey,
-        expectedDurationMinutes: existing?.expectedDurationMinutes,
-        actualDurationMinutes: minutes,
-        segmentPercent: existing?.segmentPercent,
-        done: existing?.done,
-        percentAtEnd: existing?.percentAtEnd,
-      }
-      dailyPlanStorage.upsert(entry)
-      setPlans(prev => {
-        const idx = prev.findIndex(p => p.taskId === task.id && p.date === todayKey)
-        if (idx === -1) return [...prev, entry]
-        const copy = [...prev]
-        copy[idx] = { ...copy[idx], ...entry }
-        return copy
-      })
-    },
-    [todayKey, user]
+    [tasks]
   )
 
   const handleFocusMinutesChange = useCallback(
@@ -194,30 +138,24 @@ export default function Today() {
     [todayKey, user]
   )
 
-  const getPlanForTask = useCallback(
-    (taskId: string) => plans.find(p => p.taskId === taskId && p.date === todayKey),
-    [plans, todayKey]
-  )
-
   const COLORS = ['#6366f1', '#22c55e', '#eab308', '#ef4444', '#14b8a6', '#ec4899']
 
   const todayPieItems = useMemo(() => {
     const items: { label: string; value: number; color: string }[] = []
     let colorIndex = 0
     for (const plan of plans) {
-      if (plan.date !== todayKey) continue
       const duration = plan.actualDurationMinutes ?? 0
       if (duration <= 0) continue
-      const task = tasks.find(t => t.id === plan.taskId)
+      const task = plan.taskId ? tasks.find(t => t.id === plan.taskId) : null
       items.push({
-        label: task?.name ?? '未命名任务',
+        label: plan.title ?? task?.name ?? '未命名',
         value: duration,
         color: COLORS[colorIndex % COLORS.length],
       })
       colorIndex += 1
     }
     return items
-  }, [plans, tasks, todayKey])
+  }, [plans, tasks])
 
   return (
     <div className="dashboard">
@@ -239,8 +177,8 @@ export default function Today() {
 
       <section className="task-section">
         <div className="section-head">
-          <h2>今天的任务（按预定时间）</h2>
-          <span className="stat-label">共 {todayTasks.length} 个</span>
+          <h2>今日任务</h2>
+          <span className="stat-label">共 {todayPlans.length} 个</span>
         </div>
 
         <div
@@ -252,100 +190,39 @@ export default function Today() {
             flexWrap: 'wrap',
           }}
         >
-          <span className="stat-label">添加今日计划：</span>
+          <span className="stat-label">今日任务名称</span>
+          <input
+            type="text"
+            placeholder="输入名称即可添加"
+            value={newPlanTitle}
+            onChange={e => setNewPlanTitle(e.target.value)}
+            style={{ width: 200 }}
+          />
+          <span className="stat-label">占比 %</span>
+          <input
+            type="number"
+            min={0}
+            max={100}
+            style={{ width: 64 }}
+            value={newSegmentPercent}
+            onChange={e =>
+              setNewSegmentPercent(Math.max(0, Math.min(100, Number(e.target.value) || 0)))
+            }
+          />
+          <span className="stat-label">绑定总览任务（可选）</span>
           <select
             value={newTaskId}
             onChange={e => setNewTaskId(e.target.value)}
-            style={{ minWidth: 200 }}
+            style={{ minWidth: 160 }}
           >
-            <option value="">选择总览中的任务</option>
+            <option value="">不绑定</option>
             {tasks.map(t => (
               <option key={t.id} value={t.id}>
                 {t.name}
               </option>
             ))}
           </select>
-          <span className="stat-label">占总任务进度</span>
-          <input
-            type="number"
-            min={1}
-            max={100}
-            style={{ width: 80 }}
-            value={newSegmentPercent}
-            onChange={e => setNewSegmentPercent(Math.max(1, Math.min(100, Number(e.target.value) || 0)))}
-          />
-          <span className="stat-label">%</span>
-          <span className="stat-label">或快速新建总览任务</span>
-          <input
-            type="text"
-            placeholder="输入总览任务名称"
-            value={newBaseTaskName}
-            onChange={e => setNewBaseTaskName(e.target.value)}
-            style={{ width: 180 }}
-          />
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={() => {
-              if (!user) return
-              const name = newBaseTaskName.trim()
-              if (!name) return
-              const now = new Date()
-              const nowIso = now.toISOString()
-              const deadline = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
-              const task: Task = {
-                id: crypto.randomUUID(),
-                userId: user.id,
-                name,
-                details: '',
-                percent: 0,
-                scheduledAt: nowIso,
-                deadline,
-                createdAt: nowIso,
-                updatedAt: nowIso,
-              }
-              taskStorage.add(task)
-              setTasks(prev => [...prev, task])
-              setNewTaskId(task.id)
-              setNewBaseTaskName('')
-            }}
-          >
-            新建总览任务
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => {
-              if (!user) return
-              if (!newTaskId) {
-                window.alert('请先在下拉框选择一个总览任务，或先输入名称点击「新建总览任务」。')
-                return
-              }
-              const seg = Math.max(1, Math.min(100, Math.floor(newSegmentPercent) || 0))
-              const existing = plans.find(p => p.taskId === newTaskId && p.date === todayKey)
-              const boundTask = tasks.find(t => t.id === newTaskId)
-              const entry: DailyPlan = {
-                id: existing?.id ?? crypto.randomUUID(),
-                userId: user.id,
-                taskId: newTaskId,
-                title: existing?.title ?? boundTask?.name ?? null,
-                date: todayKey,
-                expectedDurationMinutes: existing?.expectedDurationMinutes ?? null,
-                actualDurationMinutes: existing?.actualDurationMinutes ?? null,
-                segmentPercent: seg,
-                done: existing?.done ?? false,
-                percentAtEnd: existing?.percentAtEnd,
-              }
-              dailyPlanStorage.upsert(entry)
-              setPlans(prev => {
-                const idx = prev.findIndex(p => p.taskId === newTaskId && p.date === todayKey)
-                if (idx === -1) return [...prev, entry]
-                const copy = [...prev]
-                copy[idx] = entry
-                return copy
-              })
-            }}
-          >
+          <button type="button" className="btn btn-primary" onClick={handleAddPlan}>
             添加
           </button>
         </div>
@@ -368,109 +245,137 @@ export default function Today() {
                 <th style={{ width: 40 }}>完成</th>
                 <th>今日任务名称</th>
                 <th>绑定总览任务</th>
-                <th>进度 %</th>
+                <th>占比 %</th>
+                <th>总览进度</th>
                 <th>预计时长（分钟）</th>
                 <th>实际时长（分钟）</th>
                 <th>预定时间</th>
                 <th>截止时间</th>
+                <th className="th-actions">操作</th>
               </tr>
             </thead>
             <tbody>
-              {todayTasks.length === 0 ? (
+              {todayPlans.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="empty-cell">
-                    今天还没有预定任务，在总览页为任务设定预定时间即可显示到这里。
+                  <td colSpan={10} className="empty-cell">
+                    暂无今日计划，在上方输入今日任务名称并点击「添加」。
                   </td>
                 </tr>
               ) : (
-                todayTasks.map(task => {
-                  const start = new Date(task.scheduledAt).toLocaleTimeString('zh-CN', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })
-                  const deadline = new Date(task.deadline).toLocaleTimeString('zh-CN', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })
-                  const plan = getPlanForTask(task.id)
-                  const expectedMinutes = plan?.expectedDurationMinutes ?? 0
-                  const actualMinutes = plan?.actualDurationMinutes ?? 0
-                  const todayTitle = plan?.title ?? task.name
+                todayPlans.map(plan => {
+                  const task = getTaskForPlan(plan)
+                  const start = task
+                    ? new Date(task.scheduledAt).toLocaleTimeString('zh-CN', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })
+                    : '—'
+                  const deadline = task
+                    ? new Date(task.deadline).toLocaleTimeString('zh-CN', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })
+                    : '—'
                   return (
-                    <tr key={task.id}>
+                    <tr key={plan.id}>
                       <td>
                         <input
                           type="checkbox"
-                          checked={getPlanForTask(task.id)?.done ?? false}
-                          onChange={e => handleToggleDone(task, e.target.checked)}
+                          checked={plan.done ?? false}
+                          onChange={e => handleToggleDone(plan, e.target.checked)}
                         />
                       </td>
                       <td>
-                        <input
-                          type="text"
-                          value={todayTitle}
-                          onChange={e => {
-                            if (!user) return
-                            const existing = plan
-                            const entry: DailyPlan = {
-                              id: existing?.id ?? crypto.randomUUID(),
-                              userId: user.id,
-                              taskId: task.id,
-                              title: e.target.value,
-                              date: todayKey,
-                              expectedDurationMinutes: existing?.expectedDurationMinutes,
-                              actualDurationMinutes: existing?.actualDurationMinutes,
-                              segmentPercent: existing?.segmentPercent,
-                              done: existing?.done,
-                              percentAtEnd: existing?.percentAtEnd,
-                            }
-                            dailyPlanStorage.upsert(entry)
-                            setPlans(prev => {
-                              const idx = prev.findIndex(
-                                p => p.taskId === task.id && p.date === todayKey
-                              )
-                              if (idx === -1) return [...prev, entry]
-                              const copy = [...prev]
-                              copy[idx] = entry
-                              return copy
-                            })
-                          }}
-                          style={{ width: 180 }}
+                        <textarea
+                          value={plan.title ?? ''}
+                          onChange={e =>
+                            handlePlanPatch(plan.id, { title: e.target.value })
+                          }
+                          rows={2}
+                          style={{ width: '100%', resize: 'vertical' }}
                         />
                       </td>
                       <td>
-                        <span className="stat-label">{task.name}</span>
+                        <span className="stat-label">
+                          {task ? task.name : '—'}
+                        </span>
                       </td>
                       <td>
                         <input
                           type="number"
                           min={0}
                           max={100}
-                          value={task.percent}
-                          onChange={e => handlePercentChange(task, Number(e.target.value))}
-                          style={{ width: 80 }}
+                          style={{ width: 64 }}
+                          value={plan.segmentPercent ?? 0}
+                          onChange={e =>
+                            handlePlanPatch(plan.id, {
+                              segmentPercent: Math.max(
+                                0,
+                                Math.min(100, Number(e.target.value) || 0)
+                              ),
+                            })
+                          }
+                        />
+                      </td>
+                      <td>
+                        {task ? (
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            style={{ width: 80 }}
+                            value={task.percent}
+                            onChange={e =>
+                              handlePercentChange(plan, Number(e.target.value))
+                            }
+                          />
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td>
+                        <input
+                          type="number"
+                          min={0}
+                          style={{ width: 100 }}
+                          value={plan.expectedDurationMinutes ?? 0}
+                          onChange={e =>
+                            handlePlanPatch(plan.id, {
+                              expectedDurationMinutes: Math.max(
+                                0,
+                                Math.floor(Number(e.target.value) || 0)
+                              ),
+                            })
+                          }
                         />
                       </td>
                       <td>
                         <input
                           type="number"
                           min={0}
-                          value={expectedMinutes}
-                          onChange={e => handleExpectedDurationChange(task, Number(e.target.value))}
                           style={{ width: 100 }}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="number"
-                          min={0}
-                          value={actualMinutes}
-                          onChange={e => handleActualDurationChange(task, Number(e.target.value))}
-                          style={{ width: 100 }}
+                          value={plan.actualDurationMinutes ?? 0}
+                          onChange={e =>
+                            handlePlanPatch(plan.id, {
+                              actualDurationMinutes: Math.max(
+                                0,
+                                Math.floor(Number(e.target.value) || 0)
+                              ),
+                            })
+                          }
                         />
                       </td>
                       <td className="date-cell">{start}</td>
                       <td className="date-cell">{deadline}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-danger"
+                          onClick={() => handleRemovePlan(plan)}
+                        >
+                          删除
+                        </button>
+                      </td>
                     </tr>
                   )
                 })
@@ -522,7 +427,7 @@ export default function Today() {
           </svg>
           <div>
             <div className="stat-label" style={{ marginBottom: 8 }}>
-              按「实际完成时长（分钟）」绘制，仅统计填写了实际时长的任务。
+              按「实际完成时长（分钟）」绘制。
             </div>
             {todayPieItems.length > 0 && (
               <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
@@ -552,4 +457,3 @@ export default function Today() {
     </div>
   )
 }
-

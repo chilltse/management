@@ -86,10 +86,30 @@ export const dailyPlanStorage = {
   getByUserAndDate(userId: string, date: string): DailyPlan[] {
     return this.getAll().filter(p => p.userId === userId && p.date === date)
   },
+  add(entry: DailyPlan) {
+    const plans = this.getAll()
+    plans.push(entry)
+    this.saveAll(plans)
+    return entry
+  },
+  updateById(id: string, patch: Partial<DailyPlan>) {
+    const plans = this.getAll()
+    const i = plans.findIndex(p => p.id === id)
+    if (i === -1) return null
+    plans[i] = { ...plans[i], ...patch }
+    this.saveAll(plans)
+    return plans[i]
+  },
+  remove(id: string) {
+    this.saveAll(this.getAll().filter(p => p.id !== id))
+  },
   upsert(entry: DailyPlan) {
     const plans = this.getAll()
     const idx = plans.findIndex(
-      p => p.userId === entry.userId && p.taskId === entry.taskId && p.date === entry.date
+      p =>
+        p.userId === entry.userId &&
+        (p.taskId ?? '') === (entry.taskId ?? '') &&
+        p.date === entry.date
     )
     if (idx === -1) {
       plans.push(entry)

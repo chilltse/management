@@ -21,11 +21,12 @@ export interface User {
 
 export type TaskForm = Omit<Task, 'id' | 'userId' | 'createdAt' | 'updatedAt'>
 
-// 当日计划：记录某一天针对某个任务的计划 / 实际情况
+// 当日计划：独立的今日任务，可选通过 taskId 外键关联总览任务
 export interface DailyPlan {
   id: string
   userId: string
-  taskId: string
+  /** 外键，关联总览任务 id；为空表示不绑定 */
+  taskId?: string | null
   /** 今日任务名称（可与总览任务名称不同） */
   title?: string | null
   /** YYYY-MM-DD，本地日期 */
