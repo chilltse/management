@@ -7,8 +7,6 @@ import TaskRow from '../components/TaskRow'
 import TaskModal from '../components/TaskModal'
 import './Dashboard.css'
 
-const NOTE_MAX_LENGTH = 200
-
 export default function Dashboard() {
   const { user, logout } = useAuth()
   const [tasks, setTasks] = useState<Task[]>([])
@@ -99,9 +97,13 @@ export default function Dashboard() {
 
   const handleNoteChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      const value = e.target.value.slice(0, NOTE_MAX_LENGTH)
+      const value = e.target.value
       setNote(value)
       if (user) userNoteStorage.set(user.id, value)
+
+      // auto grow
+      e.target.style.height = 'auto'
+      e.target.style.height = `${e.target.scrollHeight}px`
     },
     [user]
   )
@@ -117,16 +119,15 @@ export default function Dashboard() {
           <h3 className="note-panel-title">记事栏</h3>
           <textarea
             className="note-textarea"
-            placeholder="写点备忘，最多 200 字…"
+            placeholder="写点备忘…"
             value={note}
             onChange={handleNoteChange}
             onBlur={handleNoteBlur}
-            maxLength={NOTE_MAX_LENGTH}
-            rows={6}
+            rows={4}
           />
           <div className="note-footer">
             <span className="note-persist-hint">已自动保存到本地</span>
-            <span className="note-char-count">{note.length} / {NOTE_MAX_LENGTH}</span>
+            <span className="note-char-count">{note.length} 字</span>
           </div>
         </div>
       </aside>

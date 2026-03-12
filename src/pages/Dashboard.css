@@ -44,7 +44,8 @@
   color: var(--text);
   font-size: 0.9rem;
   line-height: 1.45;
-  resize: vertical;
+  resize: none;
+  overflow: hidden;
   box-sizing: border-box;
 }
 
