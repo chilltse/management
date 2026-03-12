@@ -115,7 +115,7 @@ export default function Dashboard() {
             placeholder="写点备忘…"
             value={note}
             onChange={handleNoteChange}
-            rows={6}
+            rows={12}
           />
           <div className="note-footer">
             <span className="note-persist-hint">已自动保存到本地</span>
