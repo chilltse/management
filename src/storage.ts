@@ -5,6 +5,7 @@ const TASKS_KEY = 'pm_tasks'
 const DAILY_PLAN_KEY = 'pm_daily_plans'
 const DAILY_SUMMARY_KEY = 'pm_daily_summaries'
 const CURRENT_USER_KEY = 'pm_current_user'
+const USER_NOTE_KEY = 'pm_user_notes'
 
 function safeJson<T>(key: string, fallback: T): T {
   try {
@@ -145,5 +146,20 @@ export const dailySummaryStorage = {
       summaries[idx] = { ...summaries[idx], focusMinutes: minutes }
     }
     this.saveAll(summaries)
+  },
+}
+
+function getNotesMap(): Record<string, string> {
+  return safeJson<Record<string, string>>(USER_NOTE_KEY, {})
+}
+
+export const userNoteStorage = {
+  get(userId: string): string {
+    return getNotesMap()[userId] ?? ''
+  },
+  set(userId: string, content: string) {
+    const map = getNotesMap()
+    map[userId] = content
+    setItem(USER_NOTE_KEY, map)
   },
 }

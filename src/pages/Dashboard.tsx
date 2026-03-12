@@ -1,18 +1,24 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { taskStorage } from '../storage'
+import { taskStorage, userNoteStorage } from '../storage'
 import type { Task } from '../types'
 import TaskRow from '../components/TaskRow'
 import TaskModal from '../components/TaskModal'
 import './Dashboard.css'
 
+const NOTE_MAX_LENGTH = 200
+
 export default function Dashboard() {
   const { user, logout } = useAuth()
   const [tasks, setTasks] = useState<Task[]>([])
+  const [note, setNote] = useState('')
 
   useEffect(() => {
     if (user) setTasks(taskStorage.getByUserId(user.id))
+  }, [user])
+  useEffect(() => {
+    if (user) setNote(userNoteStorage.get(user.id))
   }, [user])
   const [editingId, setEditingId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
@@ -91,8 +97,40 @@ export default function Dashboard() {
     ? tasks.find(t => t.id === editingId) ?? null
     : null
 
+  const handleNoteChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const value = e.target.value.slice(0, NOTE_MAX_LENGTH)
+      setNote(value)
+      if (user) userNoteStorage.set(user.id, value)
+    },
+    [user]
+  )
+
+  const handleNoteBlur = useCallback(() => {
+    if (user) userNoteStorage.set(user.id, note)
+  }, [user, note])
+
   return (
     <div className="dashboard">
+      <aside className="dashboard-sidebar">
+        <div className="note-panel">
+          <h3 className="note-panel-title">记事栏</h3>
+          <textarea
+            className="note-textarea"
+            placeholder="写点备忘，最多 200 字…"
+            value={note}
+            onChange={handleNoteChange}
+            onBlur={handleNoteBlur}
+            maxLength={NOTE_MAX_LENGTH}
+            rows={6}
+          />
+          <div className="note-footer">
+            <span className="note-persist-hint">已自动保存到本地</span>
+            <span className="note-char-count">{note.length} / {NOTE_MAX_LENGTH}</span>
+          </div>
+        </div>
+      </aside>
+      <main className="dashboard-main">
       <header className="dashboard-header">
         <h1>项目进度</h1>
         <div className="header-actions">
@@ -181,6 +219,7 @@ export default function Dashboard() {
           }}
         />
       )}
+      </main>
     </div>
   )
 }

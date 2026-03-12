@@ -1,7 +1,80 @@
 .dashboard {
-  max-width: 1200px;
+  display: flex;
+  gap: 24px;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 32px 20px 40px;
+  min-height: 100vh;
+}
+
+.dashboard-sidebar {
+  flex-shrink: 0;
+  width: 260px;
+}
+
+.dashboard-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.note-panel {
+  background: var(--surface);
+  border-radius: 14px;
+  padding: 16px;
+  border: 1px solid var(--border-soft);
+  box-shadow: var(--shadow-subtle);
+  position: sticky;
+  top: 32px;
+}
+
+.note-panel-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0 0 12px 0;
+  color: var(--text);
+}
+
+.note-textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(15, 23, 42, 0.6);
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.note-textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.note-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+.note-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+  gap: 8px;
+}
+
+.note-persist-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.note-char-count {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
 }
 
 .dashboard-header {
@@ -244,6 +317,18 @@
 }
 
 @media (max-width: 768px) {
+  .dashboard {
+    flex-direction: column;
+  }
+
+  .dashboard-sidebar {
+    width: 100%;
+  }
+
+  .note-panel {
+    position: static;
+  }
+
   .stats {
     grid-template-columns: repeat(2, 1fr);
   }
