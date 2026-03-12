@@ -1,9 +1,13 @@
 .dashboard {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 32px 20px 40px;
+}
+
+.dashboard.dashboard-with-sidebar {
   display: flex;
   gap: 24px;
   max-width: 1400px;
-  margin: 0 auto;
-  padding: 32px 20px 40px;
   min-height: 100vh;
 }
 
@@ -44,8 +48,8 @@
   color: var(--text);
   font-size: 0.9rem;
   line-height: 1.45;
-  resize: none;
-  overflow: hidden;
+  resize: vertical;
+  overflow: auto;
   box-sizing: border-box;
 }
 

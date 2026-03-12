@@ -18,6 +18,9 @@ export default function Dashboard() {
   useEffect(() => {
     if (user) setNote(userNoteStorage.get(user.id))
   }, [user])
+  useEffect(() => {
+    if (user) userNoteStorage.set(user.id, note)
+  }, [user, note])
   const [editingId, setEditingId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
 
@@ -97,23 +100,13 @@ export default function Dashboard() {
 
   const handleNoteChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      const value = e.target.value
-      setNote(value)
-      if (user) userNoteStorage.set(user.id, value)
-
-      // auto grow
-      e.target.style.height = 'auto'
-      e.target.style.height = `${e.target.scrollHeight}px`
+      setNote(e.target.value)
     },
-    [user]
+    []
   )
 
-  const handleNoteBlur = useCallback(() => {
-    if (user) userNoteStorage.set(user.id, note)
-  }, [user, note])
-
   return (
-    <div className="dashboard">
+    <div className="dashboard dashboard-with-sidebar">
       <aside className="dashboard-sidebar">
         <div className="note-panel">
           <h3 className="note-panel-title">记事栏</h3>
@@ -122,8 +115,7 @@ export default function Dashboard() {
             placeholder="写点备忘…"
             value={note}
             onChange={handleNoteChange}
-            onBlur={handleNoteBlur}
-            rows={4}
+            rows={6}
           />
           <div className="note-footer">
             <span className="note-persist-hint">已自动保存到本地</span>
